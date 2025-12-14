@@ -360,36 +360,44 @@ onMounted(() => {
       drone.renderCamera()
     }
     
-    // 只在代码运行状态下处理图像和运动指令
-    if (window.cv && window.processFrame && isCodeRunning.value && !isCustomPositionMode.value) {
-      try {
-        const canvas = drone.getBottomCameraImage()
-        const frame = cv.imread(canvas)
-        const result = window.processFrame(frame, cv, drone)
-        let movementCommand, processedFrame;
-        if (Array.isArray(result) && result.length === 2) {
-          [movementCommand, processedFrame] = result;
-        } else {
-          movementCommand = { hover: true, angle: 0, speed: 0, altitude: (drone && drone.movement && drone.movement.model ? drone.movement.model.position.y : 0) };
-          processedFrame = frame;
-        }
-        
-        // 优先级规则：只有当控制器空闲时，才应用用户代码返回的运动命令
-        // 当控制器活跃（有高层命令在执行）时，忽略用户的 movementCommand
-        if (drone && drone.movement && drone.movement.setMovementCommand) {
-          if (!drone.isControllerActive()) {
-            drone.movement.setMovementCommand(movementCommand);
-          }
-          // else: 控制器活跃，由 DroneControl 独占运动控制
-        }
-        cv.customImshow(processedFrame)
+    // 始终输出摄像头画面到 UI（不依赖代码运行状态）
+    if (drone) {
+      const cameraCanvas = drone.getBottomCameraImage()
+      if (cameraCanvas) {
+        // 代码运行时，处理图像和运动指令
+        if (window.cv && window.processFrame && isCodeRunning.value && !isCustomPositionMode.value) {
+          try {
+            const frame = cv.imread(cameraCanvas)
+            const result = window.processFrame(frame, cv, drone)
+            let movementCommand, processedFrame;
+            if (Array.isArray(result) && result.length === 2) {
+              [movementCommand, processedFrame] = result;
+            } else {
+              movementCommand = { hover: true, angle: 0, speed: 0, altitude: (drone && drone.movement && drone.movement.model ? drone.movement.model.position.y : 0) };
+              processedFrame = frame;
+            }
+            
+            // 优先级规则：只有当控制器空闲时，才应用用户代码返回的运动命令
+            // 当控制器活跃（有高层命令在执行）时，忽略用户的 movementCommand
+            if (drone && drone.movement && drone.movement.setMovementCommand) {
+              if (!drone.isControllerActive()) {
+                drone.movement.setMovementCommand(movementCommand);
+              }
+              // else: 控制器活跃，由 DroneControl 独占运动控制
+            }
+            cv.customImshow(processedFrame)
 
-        if (processedFrame !== frame) {
-          processedFrame.delete()
+            if (processedFrame !== frame) {
+              processedFrame.delete()
+            }
+            frame.delete()
+          } catch (error) {
+            console.error('图像处理错误:', error)
+          }
+        } else {
+          // 代码未运行时，直接显示原始摄像头画面
+          emit('cv-output', cameraCanvas)
         }
-        frame.delete()
-      } catch (error) {
-        console.error('图像处理错误:', error)
       }
     }
     renderer.render(scene, camera)
