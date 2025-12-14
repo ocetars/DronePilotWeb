@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { Drone } from '@/components/utils/drone.js'
 import { Ground } from '@/components/utils/Ground.js'
+import { createWsBridge } from '@/components/utils/droneControl/index.js'
 import { gsap } from 'gsap'
 
 const props = defineProps({
@@ -314,6 +315,19 @@ onMounted(() => {
 
   // 初始化无人机（确保在添加事件监听之后再创建无人机）
   drone = new Drone(scene)
+  
+  // 初始化 MCP WebSocket Bridge（自动尝试连接，失败不影响正常使用）
+  const wsBridge = createWsBridge(drone, {
+    wsUrl: 'ws://localhost:8765',
+    autoReconnect: true,
+    debug: import.meta.env.DEV, // 开发环境打印日志
+  })
+  // 将 bridge 挂载到 window 供调试
+  if (import.meta.env.DEV) {
+    window.__droneWsBridge = wsBridge
+    window.__drone = drone // 方便调试
+  }
+  
   if (bottomCameraContainer.value) {
     // 等待无人机摄像头加载完成后附加摄像头元素
     const tryAttachBottomCamera = () => {
@@ -360,9 +374,13 @@ onMounted(() => {
           processedFrame = frame;
         }
         
-        // 将运动命令应用到无人机
+        // 优先级规则：只有当控制器空闲时，才应用用户代码返回的运动命令
+        // 当控制器活跃（有高层命令在执行）时，忽略用户的 movementCommand
         if (drone && drone.movement && drone.movement.setMovementCommand) {
-          drone.movement.setMovementCommand(movementCommand);
+          if (!drone.isControllerActive()) {
+            drone.movement.setMovementCommand(movementCommand);
+          }
+          // else: 控制器活跃，由 DroneControl 独占运动控制
         }
         cv.customImshow(processedFrame)
 

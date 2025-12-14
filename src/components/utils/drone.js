@@ -1,5 +1,6 @@
 import { DroneMovement } from './DroneMovement.js';
 import { DroneCamera } from './DroneCamera.js';
+import { DroneControl } from './droneControl/index.js';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
@@ -7,6 +8,7 @@ export class Drone {
     constructor(scene) {
         this.scene = scene;
         this.movement = new DroneMovement();
+        this.control = new DroneControl(this.movement); // 高层控制器
         this.camera = null;
         this.isLoading = true;
         // 创建自定义事件
@@ -134,7 +136,15 @@ export class Drone {
 
     // 在动画循环中调用，传入 delta 时间
     update(delta) {
+        // 先让控制器产生运动命令（如果活跃）
+        const controllerActive = this.control.update(delta);
+        
+        // 然后应用运动（控制器已经写入了 movement.command）
         this.movement.update(delta);
+        
+        // 记录控制器是否活跃，供外部判断优先级
+        this._controllerActive = controllerActive;
+        
         if (this.mixer) {
             // 根据高度调整动画速度
             if (this.movement && this.movement.model) {
@@ -180,5 +190,52 @@ export class Drone {
 
     getBottomCameraImage() {
         return this.camera ? this.camera.getImage() : null;
+    }
+
+    // ==================== 高层 API（供 MCP / Agent 调用） ====================
+
+    /**
+     * 检查控制器是否活跃（有正在执行的高层命令）
+     * @returns {boolean}
+     */
+    isControllerActive() {
+        return this._controllerActive || this.control.isActive();
+    }
+
+    /**
+     * 获取无人机完整状态
+     * @returns {Object}
+     */
+    getState() {
+        const controlState = this.control.getState();
+        return {
+            ...controlState,
+            isLoading: this.isLoading,
+            hasCamera: this.camera !== null,
+        };
+    }
+
+    /**
+     * 高层 API 对象（便于 MCP 工具调用）
+     */
+    get api() {
+        const self = this;
+        return {
+            // 状态查询
+            getState: () => self.getState(),
+            isActive: () => self.isControllerActive(),
+
+            // 基础动作
+            hover: () => self.control.hover(),
+            takeOff: (altitude, options) => self.control.takeOff(altitude, options),
+            land: (options) => self.control.land(options),
+            moveTo: (target, options) => self.control.moveTo(target, options),
+            rotateYaw: (angle, options) => self.control.rotateYaw(angle, options),
+
+            // 控制
+            cancel: () => self.control.cancel(),
+            pause: () => self.control.pause(),
+            resume: () => self.control.resume(),
+        };
     }
 }
