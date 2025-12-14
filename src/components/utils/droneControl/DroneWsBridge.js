@@ -179,6 +179,50 @@ export class DroneWsBridge {
           result = await api.moveTo(target, args.options);
           break;
 
+        case 'move_relative':
+        case 'moveRelative': {
+          const state = this.drone.getState();
+          const pos = state?.position;
+          const headingRad = state?.headingRad ?? 0;
+          if (!pos) {
+            throw new Error('Drone position not available');
+          }
+
+          const frame = args.frame ?? 'world';
+          const forward = args.forward ?? 0;
+          const right = args.right ?? 0;
+          const up = args.up ?? 0;
+
+          // 坐标系约定（地面平面）：原点为中轴交点，+X 向右，+Z 向下，+Y 向上。
+          // - world: forward=>-Z（屏幕/地图“向上”），right=>+X
+          // - body : forward/right 相对于无人机朝向（headingRad 来自 DroneMovement.currentAngle）
+          let nextTarget;
+          if (frame === 'body') {
+            // headingRad=0 表示朝 +X；headingRad=π/2 表示朝 +Z
+            const fx = Math.cos(headingRad);
+            const fz = Math.sin(headingRad);
+            // “右侧”按你们坐标系定义：+X 右、+Z 下，因此右侧向量是 forward 旋转 +90°
+            const rx = Math.cos(headingRad + Math.PI / 2);
+            const rz = Math.sin(headingRad + Math.PI / 2);
+
+            nextTarget = {
+              x: pos.x + fx * forward + rx * right,
+              y: (pos.y ?? 0) + up,
+              z: pos.z + fz * forward + rz * right,
+            };
+          } else {
+            // world（默认）：不看朝向，直接按世界轴移动
+            nextTarget = {
+              x: pos.x + right,          // +X 向右
+              y: (pos.y ?? 0) + up,      // +Y 向上
+              z: pos.z - forward,        // forward=向前（屏幕向上）=> -Z
+            };
+          }
+
+          result = await api.moveTo(nextTarget, args.options);
+          break;
+        }
+
         case 'rotate_yaw':
         case 'rotateYaw':
           result = await api.rotateYaw(args.angle, args.options);
@@ -220,7 +264,7 @@ export class DroneWsBridge {
    */
   async _runMission(args) {
     const { waypoints, options = {} } = args;
-    
+    console.log('[DroneWsBridge] waypoints:', waypoints);
     if (!waypoints || !Array.isArray(waypoints)) {
       throw new Error('waypoints must be an array');
     }

@@ -51,7 +51,7 @@ export class DroneControl {
 
   /**
    * 获取当前无人机状态
-   * @returns {{ position: {x,y,z}, isActive: boolean, queueLength: number, state: string }}
+   * @returns {{ position: {x,y,z}, isActive: boolean, queueLength: number, state: string, headingRad?: number }}
    */
   getState() {
     const pos = this.movement.model?.position;
@@ -61,6 +61,8 @@ export class DroneControl {
       queueLength: this.commandQueue.length,
       state: this.state,
       currentCommand: this.currentCommand?.constructor?.name || null,
+      // 当前朝向（弧度），与 DroneMovement.currentAngle 保持一致
+      headingRad: this.movement?.currentAngle ?? 0,
     };
   }
 

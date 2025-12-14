@@ -265,6 +265,36 @@ async function main() {
     }
   );
 
+  // 注册工具：相对移动（支持 world/body 两种参考系）
+  server.registerTool(
+    'drone.move_relative',
+    {
+      description: '相对移动（默认 world 坐标系：+X向右、+Z向下、+Y向上，其中 forward 对应 -Z（屏幕向上）；可选 body 相对无人机朝向）。单位米。',
+      inputSchema: {
+        frame: z.enum(['world', 'body']).optional().describe('参考系：world(默认，+X右/+Z下/+Y上，forward=-Z) 或 body(相对无人机朝向)'),
+        forward: z.number().optional().describe('前进距离（米，正=前进，负=后退）'),
+        right: z.number().optional().describe('右移距离（米，正=向右，负=向左）'),
+        up: z.number().optional().describe('上升距离（米，正=上升，负=下降）'),
+        maxSpeed: z.number().optional().describe('最大飞行速度（米/秒）'),
+        timeoutMs: z.number().optional().describe('超时时间（毫秒）'),
+      },
+    },
+    async ({ frame, forward, right, up, maxSpeed, timeoutMs }) => {
+      try {
+        const result = await bridge.sendCommand('move_relative', {
+          frame,
+          forward,
+          right,
+          up,
+          options: { maxSpeed, timeoutMs },
+        });
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return { content: [{ type: 'text', text: `Error: ${error.message}` }], isError: true };
+      }
+    }
+  );
+
   // 注册工具：执行航线任务
   server.registerTool(
     'drone.run_mission',

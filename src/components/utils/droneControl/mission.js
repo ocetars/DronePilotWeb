@@ -74,8 +74,19 @@ export class Mission {
    */
   async run(control) {
     if (this.state !== MissionState.PENDING) {
-      throw new Error('Mission already started');
+      const error = new Error('Mission already started');
+      this._reject(error);
+      throw error;
     }
+
+    if (!this.waypoints || this.waypoints.length === 0) {
+      const error = new Error('No waypoints to execute');
+      this.state = MissionState.FAILED;
+      this._reject(error);
+      throw error;
+    }
+
+    console.log('[Mission] Starting mission with', this.waypoints.length, 'waypoints:', this.waypoints);
 
     this.state = MissionState.RUNNING;
     this.startTime = performance.now();
@@ -237,11 +248,14 @@ export class Mission {
  * @param {DroneControl} control
  * @param {Array} waypoints
  * @param {Object} options
- * @returns {Promise}
+ * @returns {Mission} - 返回 Mission 对象，使用 mission.promise 等待完成
  */
 export function runMission(control, waypoints, options = {}) {
   const mission = new Mission(waypoints, options);
-  mission.run(control);
+  mission.run(control).catch(error => {
+    console.error('[Mission] run() error:', error);
+  });
+  
   return mission;
 }
 
