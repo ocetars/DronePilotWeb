@@ -22,7 +22,11 @@ import { z } from 'zod';
 
 // ==================== 配置 ====================
 const WS_PORT = 8765;
-const REQUEST_TIMEOUT = 303000; // 303秒超时
+// 说明：
+// - 浏览器端执行航线任务属于长任务，会持续发送 progress。
+// - MCP SDK 默认请求超时是 60s（DPW-Agent 侧已对 run_mission 拉长超时）。
+// - 这里是 MCP Server -> Browser 的桥接超时，默认也要足够长，避免任务正常执行却被桥接层判定“无响应”。
+const REQUEST_TIMEOUT = parseInt(process.env.MCP_BROWSER_REQUEST_TIMEOUT_MS || '1800000', 10); // 默认 30 分钟
 
 // ==================== WebSocket Bridge (连接浏览器) ====================
 class BrowserBridge {
