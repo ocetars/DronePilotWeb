@@ -22,7 +22,7 @@ import { z } from 'zod';
 
 // ==================== 配置 ====================
 const WS_PORT = 8765;
-const REQUEST_TIMEOUT = 60000; // 60秒超时
+const REQUEST_TIMEOUT = 303000; // 303秒超时
 
 // ==================== WebSocket Bridge (连接浏览器) ====================
 class BrowserBridge {
